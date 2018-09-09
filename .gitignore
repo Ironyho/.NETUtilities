@@ -1,0 +1,7 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/NETUtilities/.vs/NETUtilities/v15
+/NETUtilities/Utilities/obj/Debug
+/NETUtilities/Utilities/bin/Debug
