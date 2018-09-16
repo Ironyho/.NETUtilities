@@ -1,31 +1,53 @@
-﻿using System.Management;
+﻿using System.Collections.Generic;
+using System.Management;
 using System.Net.NetworkInformation;
 using System.ServiceProcess;
 using System.Text.RegularExpressions;
 
 namespace Utilities
 {
+    /// <summary>
+    /// Provides some methods to access the media access control address (MAC).
+    /// </summary>
     public static class MacUtilities
     {
-        public static string GetMacByNetworkInterface()
+        /// <summary>
+        /// Get all MAC addresses through NetworkInterface.
+        /// </summary>
+        /// <returns></returns>
+        public static IList<string> GetMacsByNetworkInterface()
         {
+            var macs = new List<string>();
+
             var interfaces = NetworkInterface.GetAllNetworkInterfaces();
             foreach (var @interface in interfaces)
             {
-                var mac = @interface.GetPhysicalAddress().ToString();
-                if (mac.Length > 0)
+                var up = @interface.OperationalStatus == OperationalStatus.Up;
+                var loopback = @interface.NetworkInterfaceType == NetworkInterfaceType.Loopback;
+
+                if (up && !loopback)
                 {
-                    var result = Regex.Replace(mac, ".{2}", "$0:");
-                    return result.Remove(result.Length - 1);
+                    var address = @interface.GetPhysicalAddress().ToString();
+
+                    // insert ":" then remove the last ":"
+                    var result = Regex.Replace(address, ".{2}", "$0:");
+                    var mac = result.Remove(result.Length - 1);
+
+                    macs.Add(mac);
                 }
             }
 
-            return string.Empty;
+            return macs;
         }
 
-        public static string GetMacByWmi()
+        /// <summary>
+        /// Get all MAC addressess through WMI (Windows Management Instrumentation).
+        /// </summary>
+        /// <returns></returns>
+        public static IList<string> GetMacsByWmi()
         {
             var isManagerRunning = false;
+            var macs = new List<string>();
 
             try
             {
@@ -37,26 +59,28 @@ namespace Utilities
                 // do nothing
             }
 
-            if (!isManagerRunning)
+            if (isManagerRunning)
             {
-                return null;
-            }
+                var mc = new ManagementClass("Win32_NetworkAdapterConfiguration");
+                var moc = mc.GetInstances();
 
-            var mc = new ManagementClass("Win32_NetworkAdapterConfiguration");
-            var moc = mc.GetInstances();
-
-            foreach (var o in moc)
-            {
-                var mo = (ManagementObject)o;
-                if ((bool)mo["IPEnabled"])
+                foreach (var o in moc)
                 {
-                    return mo["MacAddress"].ToString().ToUpper();
-                }
+                    var mo = (ManagementObject) o;
 
-                mo.Dispose();
+                    var address = mo["MacAddress"];
+                    var enabled = (bool) mo["IPEnabled"];
+
+                    if (address != null && enabled)
+                    {
+                        macs.Add(address.ToString().ToUpper());
+                    }
+
+                    mo.Dispose();
+                }
             }
 
-            return null;
+            return macs;
         }
     }
 }
