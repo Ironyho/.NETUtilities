@@ -5,3 +5,6 @@
 /NETUtilities/.vs/NETUtilities/v15
 /NETUtilities/Utilities/obj/Debug
 /NETUtilities/Utilities/bin/Debug
+/NETUtilities/packages
+/NETUtilities/Tests/bin/Debug
+/NETUtilities/Tests/obj/Debug
