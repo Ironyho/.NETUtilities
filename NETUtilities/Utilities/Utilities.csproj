@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="CmdRunner.cs" />
     <Compile Include="ConsoleManager.cs" />
+    <Compile Include="FirewallOperator.cs" />
     <Compile Include="MacUtilities.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
