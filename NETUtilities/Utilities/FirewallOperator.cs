@@ -1,16 +1,19 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Linq;
+using NetFwTypeLib;
 
 namespace Utilities
 {
     /// <summary>
-    /// Provide methods to add\remove\check filewall exception.
+    /// Provides methods to add\remove\check firewall exceptions.
     /// </summary>
     public class FirewallOperator
     {
         /// <summary>
-        /// Determines whether filewall exception exists.
+        /// Determines whether the firewall exception of the specified program file exists.
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param name="fileName">The full path of the specified program file.</param>
         /// <returns></returns>
         public static bool ExceptionExists(string fileName)
         {
@@ -31,61 +34,121 @@ namespace Utilities
         }
 
         /// <summary>
-        /// Adds filewall exception for a file.
+        /// Adds firewall exception for the specified program file.
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param name="fileName">The full path of the specified program file.</param>
         public static void AddException(string fileName)
         {
-            var fileInfo = new FileInfo(fileName);
-            var nameWithEx = fileInfo.Name;
-
-            // name with extension
-            var commandIn = $"{FirewallCmd} add rule name=\"{nameWithEx}\" dir=in action=allow program=\"{fileName}\"";
-            var commandOut =
-                $"{FirewallCmd} add rule name=\"{nameWithEx}\" dir=out action=allow program=\"{fileName}\"";
-
-            CmdRunner.Execute(commandIn);
-            CmdRunner.Execute(commandOut);
-
-            // name without extension
-            var name = Path.GetFileNameWithoutExtension(fileName);
-            if (!string.IsNullOrEmpty(name))
-            {
-                commandIn = $"{FirewallCmd} add rule name=\"{name}\" dir=in action=allow program=\"{fileName}\"";
-                commandOut = $"{FirewallCmd} add rule name=\"{name}\" dir=out action=allow program=\"{fileName}\"";
-
-                CmdRunner.Execute(commandIn);
-                CmdRunner.Execute(commandOut);
-            }
+            AddRule(fileName, Path.GetFileName(fileName));
+            AddRule(fileName, Path.GetFileNameWithoutExtension(fileName));
         }
 
         /// <summary>
-        /// Removes filrewall exception for a file.
+        /// Removes the firewall exception of the specified program file.
         /// </summary>
-        /// <param name="fileName"></param>
+        /// <param name="fileName">The full path of the specified program file.</param>
         public static void RemoveException(string fileName)
         {
-            // name with extension
-            var nameWithEx = new FileInfo(fileName).Name;
+            RemoveRule(fileName, Path.GetFileName(fileName));
+            RemoveRule(fileName, Path.GetFileNameWithoutExtension(fileName));
+        }
 
-            var commandIn = $"{FirewallCmd} delete rule name=\"{nameWithEx}\" dir=in program=\"{fileName}\"";
-            var commandOut = $"{FirewallCmd} delete rule name=\"{nameWithEx}\" dir=out program=\"{fileName}\"";
+        /// <summary>
+        /// Adds firewall exception for the specified program file through `NetFwTypeLib` COM.
+        /// </summary>
+        /// <param name="fileName">The full path of the specified program file.</param>
+        public static void AddExceptionByCom(string fileName)
+        {
+            AddRuleByCom(fileName, Path.GetFileName(fileName));
+            AddRuleByCom(fileName, Path.GetFileNameWithoutExtension(fileName));
+        }
+
+        /// <summary>
+        /// Removes the firewall exception of the specified program file through `NetFwTypeLib` COM.
+        /// </summary>
+        /// <param name="fileName">The full path of the specified program file.</param>
+        public static void RemoveExceptionByCom(string fileName)
+        {
+            RemoveRuleByCom(fileName, Path.GetFileName(fileName));
+            RemoveRuleByCom(fileName, Path.GetFileNameWithoutExtension(fileName));
+        }
+
+        public static void AuthorizeApplication(string fileName)
+        {
+            var netFwMgr = (INetFwMgr) Activator.CreateInstance(Type.GetTypeFromProgID(FwMgr));
+            var app = (INetFwAuthorizedApplication) Activator.CreateInstance(Type.GetTypeFromProgID(FwApp));
+
+            app.Name = Path.GetFileName(fileName);
+            app.ProcessImageFileName = fileName;
+            app.Enabled = true;
+
+            netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications.Add(app);
+        }
+
+        public static void UnauthorizeApplication(string fileName)
+        {
+            var netFwMgr = (INetFwMgr) Activator.CreateInstance(Type.GetTypeFromProgID(FwMgr));
+            netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications.Remove(fileName);
+        }
+
+        private static void AddRule(string appName, string ruleName)
+        {
+            var commandIn = $"{FirewallCmd} add rule name=\"{ruleName}\" dir=in action=allow program=\"{appName}\"";
+            var commandOut = $"{FirewallCmd} add rule name=\"{ruleName}\" dir=out action=allow program=\"{appName}\"";
 
             CmdRunner.Execute(commandIn);
             CmdRunner.Execute(commandOut);
+        }
 
-            // name without extension
-            var name = Path.GetFileNameWithoutExtension(fileName);
-            if (!string.IsNullOrEmpty(fileName))
+        private static void AddRuleByCom(string appName, string ruleName)
+        {
+            var policy = (INetFwPolicy2) Activator.CreateInstance(Type.GetTypeFromProgID(FwPolicy));
+
+            // inbound rule
+            var ruleIn = (INetFwRule) Activator.CreateInstance(Type.GetTypeFromProgID(FwRule));
+
+            ruleIn.Name = ruleName;
+            ruleIn.ApplicationName = appName;
+            ruleIn.Enabled = true;
+
+            policy.Rules.Add(ruleIn);
+
+            // outbound rule
+            var ruleOut = (INetFwRule) Activator.CreateInstance(Type.GetTypeFromProgID(FwRule));
+
+            ruleOut.Name = ruleName;
+            ruleOut.ApplicationName = appName;
+            ruleOut.Direction = NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT;
+            ruleOut.Enabled = true;
+
+            policy.Rules.Add(ruleOut);
+        }
+
+        private static void RemoveRule(string appName, string ruleName)
+        {
+            var commandIn = $"{FirewallCmd} delete rule name=\"{ruleName}\" dir=in program=\"{appName}\"";
+            var commandOut = $"{FirewallCmd} delete rule name=\"{ruleName}\" dir=out program=\"{appName}\"";
+
+            CmdRunner.Execute(commandIn);
+            CmdRunner.Execute(commandOut);
+        }
+
+        private static void RemoveRuleByCom(string appName, string ruleName)
+        {
+            var policy = (INetFwPolicy2) Activator.CreateInstance(Type.GetTypeFromProgID(FwPolicy));
+            var rules = policy.Rules.OfType<INetFwRule>();
+
+            foreach (var rule in rules.Where(x => x.Name == ruleName && x.ApplicationName == appName))
             {
-                commandIn = $"{FirewallCmd} delete rule name=\"{name}\" dir=in program=\"{fileName}\"";
-                commandOut = $"{FirewallCmd} delete rule name=\"{name}\" dir=out program=\"{fileName}\"";
-
-                CmdRunner.Execute(commandIn);
-                CmdRunner.Execute(commandOut);
+                policy.Rules.Remove(rule.Name);
             }
         }
 
-        private static string FirewallCmd { get; } = "netsh advfirewall firewall";
+        private const string FirewallCmd = "netsh advfirewall firewall";
+
+        private const string FwMgr = "HNetCfg.FwMgr";
+        private const string FwApp = "HNetCfg.FwAuthorizedApplication";
+        private const string FwPolicy = "HNetCfg.FwPolicy2";
+        private const string FwRule = "HNetCfg.FWRule";
     }
 }
