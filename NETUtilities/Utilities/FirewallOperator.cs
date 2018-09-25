@@ -100,30 +100,6 @@ namespace Utilities
             CmdRunner.Execute(commandOut);
         }
 
-        private static void AddRuleByCom(string appName, string ruleName)
-        {
-            var policy = (INetFwPolicy2) Activator.CreateInstance(Type.GetTypeFromProgID(FwPolicy));
-
-            // inbound rule
-            var ruleIn = (INetFwRule) Activator.CreateInstance(Type.GetTypeFromProgID(FwRule));
-
-            ruleIn.Name = ruleName;
-            ruleIn.ApplicationName = appName;
-            ruleIn.Enabled = true;
-
-            policy.Rules.Add(ruleIn);
-
-            // outbound rule
-            var ruleOut = (INetFwRule) Activator.CreateInstance(Type.GetTypeFromProgID(FwRule));
-
-            ruleOut.Name = ruleName;
-            ruleOut.ApplicationName = appName;
-            ruleOut.Direction = NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT;
-            ruleOut.Enabled = true;
-
-            policy.Rules.Add(ruleOut);
-        }
-
         private static void RemoveRule(string appName, string ruleName)
         {
             var commandIn = $"{FirewallCmd} delete rule name=\"{ruleName}\" dir=in program=\"{appName}\"";
@@ -131,6 +107,30 @@ namespace Utilities
 
             CmdRunner.Execute(commandIn);
             CmdRunner.Execute(commandOut);
+        }
+
+        private static void AddRuleByCom(string appName, string ruleName)
+        {
+            var policy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID(FwPolicy));
+
+            // Inbound Rule
+            var ruleIn = (INetFwRule)Activator.CreateInstance(Type.GetTypeFromProgID(FwRule));
+
+            ruleIn.Name = ruleName;
+            ruleIn.ApplicationName = appName;
+            ruleIn.Enabled = true;
+
+            policy.Rules.Add(ruleIn);
+
+            // Outbound Rule
+            var ruleOut = (INetFwRule)Activator.CreateInstance(Type.GetTypeFromProgID(FwRule));
+
+            ruleOut.Name = ruleName;
+            ruleOut.ApplicationName = appName;
+            ruleOut.Direction = NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT;
+            ruleOut.Enabled = true;
+
+            policy.Rules.Add(ruleOut);
         }
 
         private static void RemoveRuleByCom(string appName, string ruleName)
